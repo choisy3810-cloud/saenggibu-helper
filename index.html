@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>생기부 작성 도우미</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#fff; --line:#e2e5ea; --text:#1f2933; --muted:#6b7480;
+    --pri:#2f5d8a; --pri-l:#e8f0f8; --ok:#2e7d4f; --ok-l:#e6f4ec; --warn:#a86b00; --warn-l:#fff4db;
+    --err:#b3261e; --err-l:#fde8e6; --radius:10px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.55}
+  header{background:var(--pri);color:#fff;padding:14px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  header h1{font-size:19px;margin:0;font-weight:700}
+  header .sub{opacity:.85;font-size:13px}
+  main{max-width:1400px;margin:0 auto;padding:18px;display:flex;flex-direction:column;gap:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+  .card h2{font-size:15px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  .step{display:inline-flex;width:22px;height:22px;border-radius:50%;background:var(--pri);color:#fff;font-size:12px;align-items:center;justify-content:center}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+  label{font-size:12.5px;color:var(--muted);display:block;margin-bottom:4px;font-weight:600}
+  input[type=text],input[type=password],input[type=number],select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font:inherit;background:#fff;color:inherit}
+  textarea{resize:vertical}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--pri-l);border-color:var(--pri)}
+  button{font:inherit;border:1px solid var(--line);background:#fff;padding:7px 13px;border-radius:7px;cursor:pointer;white-space:nowrap}
+  button:hover:not(:disabled){background:#f0f2f5}
+  button.pri{background:var(--pri);color:#fff;border-color:var(--pri)}
+  button.pri:hover:not(:disabled){background:#264d73}
+  button.danger{color:var(--err);border-color:#f0c4c0}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .muted{color:var(--muted);font-size:12.5px}
+  .privacy{background:var(--ok-l);border:1px solid #c5e3d1;border-radius:8px;padding:10px 14px;font-size:12.5px}
+  .privacy ul{margin:4px 0 0;padding-left:18px}
+  .keyok{color:var(--ok);font-weight:600}
+  .keyno{color:var(--err);font-weight:600}
+  .drop{border:2px dashed #c4ccd6;border-radius:9px;padding:22px;text-align:center;cursor:pointer;background:#fafbfc}
+  .drop.over{background:var(--pri-l);border-color:var(--pri)}
+  .cols{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .cols label{display:flex;gap:5px;align-items:center;font-weight:400;color:var(--text);background:#f3f5f8;border:1px solid var(--line);padding:4px 9px;border-radius:6px;margin:0;cursor:pointer;font-size:12.5px}
+  .work{display:grid;grid-template-columns:minmax(340px,420px) 1fr;gap:16px;align-items:start}
+  @media (max-width:900px){.work{grid-template-columns:1fr}}
+  .listwrap{max-height:68vh;overflow:auto;border:1px solid var(--line);border-radius:8px}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left}
+  th{background:#f3f5f8;position:sticky;top:0;z-index:1;font-weight:600;font-size:12.5px}
+  tr.sel td{background:var(--pri-l)}
+  tbody tr{cursor:pointer}
+  tbody tr:hover td{background:#f7f9fb}
+  .badge{display:inline-block;padding:1px 8px;border-radius:20px;font-size:11.5px;font-weight:600}
+  .b-empty{background:#eef0f3;color:var(--muted)}
+  .b-busy{background:var(--pri-l);color:var(--pri)}
+  .b-ai{background:#ece8fb;color:#5b3fb0}
+  .b-edited{background:var(--ok-l);color:var(--ok)}
+  .b-error{background:var(--err-l);color:var(--err)}
+  .w{color:var(--warn);font-weight:600}
+  .e{color:var(--err);font-weight:600}
+  #draft{min-height:260px;font-size:14.5px;line-height:1.75}
+  .meter{display:flex;justify-content:space-between;font-size:12.5px;margin:6px 0;color:var(--muted)}
+  .bar{height:6px;background:#eef0f3;border-radius:4px;overflow:hidden;margin-bottom:10px}
+  .bar>div{height:100%;background:var(--pri)}
+  .issue{padding:5px 10px;border-radius:6px;margin:4px 0;font-size:12.5px}
+  .issue.err{background:var(--err-l);color:var(--err)}
+  .issue.warn{background:var(--warn-l);color:var(--warn)}
+  .issue.ok{background:var(--ok-l);color:var(--ok)}
+  details{border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-top:10px;background:#fafbfc}
+  summary{cursor:pointer;font-weight:600;font-size:13px}
+  pre{white-space:pre-wrap;word-break:break-all;font-family:inherit;font-size:13px;margin:8px 0 0;max-height:320px;overflow:auto}
+  .prog{flex:1;min-width:160px;height:8px;background:#eef0f3;border-radius:4px;overflow:hidden}
+  .prog>div{height:100%;background:var(--ok);width:0;transition:width .2s}
+  .empty{color:var(--muted);text-align:center;padding:60px 10px}
+  .hidden{display:none!important}
+  .errbox{background:var(--err-l);color:var(--err);padding:8px 12px;border-radius:7px;font-size:12.5px;margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>생기부 작성 도우미</h1>
+  <span class="sub">구글 폼 응답 → 학생별 생활기록부 초안 작성 · 수정 · 전체 다운로드</span>
+</header>
+
+<main>
+  <!-- 1. 설정 -->
+  <section class="card">
+    <h2><span class="step">1</span> 작성 설정</h2>
+    <div class="grid">
+      <div>
+        <label>OpenAI API 키</label>
+        <div id="keyStatus"></div>
+        <input type="password" id="sessionKey" placeholder="sk-... (이 창에서만 쓰고 저장하지 않음)" class="hidden" autocomplete="off">
+      </div>
+      <div>
+        <label>모델</label>
+        <input type="text" id="model" list="models" value="gpt-4o-mini">
+        <datalist id="models">
+          <option value="gpt-4o-mini"><option value="gpt-4o"><option value="gpt-4.1-mini"><option value="gpt-4.1"><option value="gpt-5-mini"><option value="gpt-5">
+        </datalist>
+      </div>
+      <div>
+        <label>기재 영역 (과목·항목)</label>
+        <input type="text" id="area" value="정보 교과 세부능력 및 특기사항">
+      </div>
+      <div>
+        <label>최대 분량 (NEIS 바이트)</label>
+        <input type="number" id="maxBytes" value="1500" min="150" step="50">
+        <div class="muted" id="bytesHint"></div>
+      </div>
+      <div>
+        <label>학교명 (마스킹용, 선택)</label>
+        <input type="text" id="school" placeholder="예: 한빛고등학교">
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <label>공통 추가 지침 (선택)</label>
+      <textarea id="globalExtra" rows="2" placeholder="예: 탐구 주제와 연결된 교과 개념을 함께 드러낼 것 / 진로와 연계된 부분은 사실만 기록할 것"></textarea>
+    </div>
+    <div class="privacy" style="margin-top:12px">
+      <b>🔒 개인정보 보호 방식</b>
+      <ul>
+        <li>파일은 서버에 올라가지 않고 이 브라우저 창 안에서만 읽고 처리합니다. 창을 닫으면 모든 자료가 사라집니다.</li>
+        <li>AI에는 <b>학번·이름·연락처·이메일·학교명을 지운 활동 내용만</b> 보냅니다. 이름은 '해당 학생'/'다른 학생'으로 바꿉니다.</li>
+        <li>타임스탬프·이메일·연락처 열은 기본으로 전송 대상에서 빠집니다. 각 학생 화면의 「API 전송 내용」에서 실제로 보내는 글을 확인할 수 있습니다.</li>
+        <li>작업 내용은 브라우저 저장소에 남기지 않습니다. 중간 저장은 「전체 다운로드」 파일로 하고, 그 파일을 다시 올리면 이어서 작업할 수 있습니다.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 2. 업로드 -->
+  <section class="card">
+    <h2><span class="step">2</span> 구글 폼 응답 파일 올리기</h2>
+    <div class="drop" id="drop">
+      <b>여기를 눌러 파일 선택</b> 또는 파일을 끌어다 놓기<br>
+      <span class="muted">.xlsx · .csv (구글 스프레드시트 → 파일 → 다운로드) / 이 앱에서 내려받은 작업 파일도 가능</span>
+      <input type="file" id="file" accept=".xlsx,.xls,.csv" class="hidden">
+    </div>
+    <div class="row" style="margin-top:8px"><button id="sampleBtn">예시 자료로 미리 써 보기</button><span class="muted" id="fileInfo"></span></div>
+
+    <div id="mapping" class="hidden" style="margin-top:14px">
+      <div class="grid">
+        <div><label>학번 열</label><select id="sidCol"></select></div>
+        <div><label>이름 열</label><select id="nameCol"></select></div>
+      </div>
+      <div style="margin-top:10px">
+        <label>AI에 보낼 활동 내용 열 (체크한 열만 전송)</label>
+        <div class="cols" id="actCols"></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="pri" id="buildBtn">학생 목록 만들기</button>
+        <span class="muted">같은 학번·이름으로 여러 번 응답한 경우 한 학생으로 합칩니다.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. 작성 -->
+  <section class="card hidden" id="workCard">
+    <h2><span class="step">3</span> 학생별 생기부 작성 · 수정</h2>
+    <div class="row" style="margin-bottom:12px">
+      <button class="pri" id="genEmptyBtn">미작성 학생 모두 생성</button>
+      <button id="genSelBtn">체크한 학생 생성</button>
+      <button class="danger hidden" id="stopBtn">중지</button>
+      <div class="prog"><div id="progBar"></div></div>
+      <span class="muted" id="progTxt"></span>
+      <button class="pri" id="exportBtn" style="margin-left:auto">⬇ 전체 다운로드 (.xlsx)</button>
+    </div>
+    <div class="work">
+      <div>
+        <div class="row" style="margin-bottom:8px">
+          <input type="text" id="search" placeholder="학번·이름 검색" style="flex:1">
+          <select id="filter" style="width:auto">
+            <option value="all">전체</option><option value="empty">미작성</option><option value="issue">점검 필요</option><option value="error">오류</option>
+          </select>
+        </div>
+        <div class="listwrap">
+          <table>
+            <thead><tr><th><input type="checkbox" id="chkAll"></th><th>학번</th><th>이름</th><th>상태</th><th>바이트</th><th>점검</th></tr></thead>
+            <tbody id="list"></tbody>
+          </table>
+        </div>
+        <div class="muted" id="summary" style="margin-top:6px"></div>
+      </div>
+      <div id="editor"><div class="empty">왼쪽 목록에서 학생을 고르세요.</div></div>
+    </div>
+  </section>
+</main>
+
+<script>
+/* =====================================================================
+   설정: 아래 GPT_API 따옴표 안에 OpenAI API 키를 넣으세요. (예: "sk-proj-...")
+   - 키가 들어간 이 파일은 다른 사람과 공유하지 마세요.
+   - 비워 두면 화면에서 키를 입력할 수 있고, 그 키는 창을 닫으면 사라집니다.
+   ===================================================================== */
+const GPT_API = "";
+
+const STATUS = {empty:'미작성', busy:'생성 중', ai:'AI 초안', edited:'수정됨', error:'오류'};
+const EXCLUDE_COL = /타임스탬프|timestamp|이메일|e-?mail|메일 주소|전화|연락처|휴대폰|핸드폰|개인정보|동의/i;
+
+const state = {headers:[], rows:[], map:{sid:-1,name:-1,acts:[]}, students:[], selectedId:null,
+               running:false, stop:false, dirty:false};
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const byId = id => state.students.find(s => s.id === id);
+const sourceOf = s => s.entries.join('\n\n---\n\n');
+
+/* ---------- NEIS 바이트 (한글 3, 영문·숫자·공백 1, 줄바꿈 2) ---------- */
+function neisBytes(t){
+  let b = 0;
+  for (const ch of String(t||'')) { const c = ch.codePointAt(0); b += ch === '\n' ? 2 : (c < 128 ? 1 : 3); }
+  return b;
+}
+const maxBytes = () => Math.max(150, +$('#maxBytes').value || 1500);
+
+/* ---------- API 키 ---------- */
+const getKey = () => (GPT_API && GPT_API.trim()) || $('#sessionKey').value.trim();
+function renderKeyStatus(){
+  if (GPT_API && GPT_API.trim()) {
+    $('#keyStatus').innerHTML = '<span class="keyok">✓ 코드의 GPT_API 변수에 설정됨</span>';
+    $('#sessionKey').classList.add('hidden');
+  } else {
+    $('#keyStatus').innerHTML = '<span class="keyno">GPT_API 변수가 비어 있음</span> <span class="muted">— 아래에 입력하거나 파일 코드에 넣으세요.</span>';
+    $('#sessionKey').classList.remove('hidden');
+  }
+}
+function renderBytesHint(){ $('#bytesHint').textContent = `한글 약 ${Math.floor(maxBytes()/3)}자`; }
+
+/* ---------- 파일 읽기 ---------- */
+async function readFile(f){
+  let wb;
+  if (/\.csv$/i.test(f.name)) wb = XLSX.read(await f.text(), {type:'string'});
+  else wb = XLSX.read(await f.arrayBuffer(), {type:'array'});
+
+  // 이 앱에서 내려받은 작업 파일이면 이어서 작업
+  if (wb.SheetNames.includes('생기부')) {
+    const r = XLSX.utils.sheet_to_json(wb.Sheets['생기부'], {header:1, defval:'', raw:false});
+    if (r[0] && r[0].includes('생기부 내용')) { loadWorkFile(wb, f.name); return; }
+  }
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:'', raw:false})
+                 .filter(r => r.some(v => String(v).trim() !== ''));
+  if (rows.length < 2) { alert('응답 내용이 없는 파일입니다.'); return; }
+  setRows(rows, f.name);
+}
+
+function setRows(rows, fname){
+  state.headers = rows[0].map(h => String(h).trim());
+  state.rows = rows.slice(1);
+  const H = state.headers;
+  const sid = H.findIndex(h => /학번/.test(h));
+  const name = H.findIndex(h => /이름|성명/.test(h));
+  const acts = H.map((h,i) => i).filter(i => i !== sid && i !== name && H[i] && !EXCLUDE_COL.test(H[i]));
+  state.map = {sid, name, acts};
+  $('#fileInfo').textContent = `${fname} · 응답 ${state.rows.length}건 · 열 ${H.length}개`;
+  renderMapping();
+}
+
+function renderMapping(){
+  const H = state.headers, m = state.map;
+  const opts = sel => '<option value="-1">(선택)</option>' + H.map((h,i) => `<option value="${i}" ${i===sel?'selected':''}>${esc(h||'(제목 없음)')}</option>`).join('');
+  $('#sidCol').innerHTML = opts(m.sid);
+  $('#nameCol').innerHTML = opts(m.name);
+  $('#actCols').innerHTML = H.map((h,i) => (i===m.sid||i===m.name) ? '' :
+    `<label title="${esc(h)}"><input type="checkbox" value="${i}" ${m.acts.includes(i)?'checked':''}>${esc(h.length>40?h.slice(0,40)+'…':h||'(제목 없음)')}</label>`).join('');
+  $('#mapping').classList.remove('hidden');
+}
+
+function buildStudents(){
+  const m = state.map;
+  m.sid = +$('#sidCol').value; m.name = +$('#nameCol').value;
+  m.acts = [...document.querySelectorAll('#actCols input:checked')].map(x => +x.value).filter(i => i!==m.sid && i!==m.name);
+  if (m.sid < 0 || m.name < 0) return alert('학번 열과 이름 열을 골라 주세요.');
+  if (!m.acts.length) return alert('활동 내용 열을 하나 이상 골라 주세요.');
+  if (state.students.some(s => s.draft) && !confirm('지금 작성 중인 내용이 사라집니다. 먼저 전체 다운로드로 저장했나요?\n계속하려면 확인을 누르세요.')) return;
+
+  const g = new Map();
+  for (const r of state.rows) {
+    const sid = String(r[m.sid] ?? '').trim(), name = String(r[m.name] ?? '').trim();
+    if (!sid && !name) continue;
+    const key = sid + '|' + name;
+    if (!g.has(key)) g.set(key, {id:'s'+g.size, sid, name, entries:[], draft:'', status:'empty', extra:'', err:''});
+    const parts = m.acts.map(i => { const v = String(r[i] ?? '').trim(); return v ? `[${state.headers[i]}]\n${v}` : ''; }).filter(Boolean);
+    if (parts.length) g.get(key).entries.push(parts.join('\n\n'));
+  }
+  setStudents([...g.values()]);
+}
+
+function loadWorkFile(wb, fname){
+  const r = XLSX.utils.sheet_to_json(wb.Sheets['생기부'], {header:1, defval:'', raw:false});
+  const h = r[0], iS = h.indexOf('학번'), iN = h.indexOf('이름'), iD = h.indexOf('생기부 내용'), iT = h.indexOf('상태');
+  const src = new Map();
+  if (wb.Sheets['활동자료']) {
+    const a = XLSX.utils.sheet_to_json(wb.Sheets['활동자료'], {header:1, defval:'', raw:false});
+    for (const x of a.slice(1)) src.set(String(x[0]).trim()+'|'+String(x[1]).trim(), String(x[2]||''));
+  }
+  const rev = Object.fromEntries(Object.entries(STATUS).map(([k,v]) => [v,k]));
+  const list = r.slice(1).filter(x => String(x[iS]).trim() || String(x[iN]).trim()).map((x,i) => {
+    const sid = String(x[iS]).trim(), name = String(x[iN]).trim(), draft = String(x[iD]||'');
+    let st = rev[String(x[iT]||'').trim()] || (draft ? 'edited' : 'empty');
+    if (st === 'busy' || (st === 'error' && draft)) st = draft ? 'edited' : 'empty';
+    const s = src.get(sid+'|'+name) || '';
+    return {id:'s'+i, sid, name, entries: s ? s.split('\n\n---\n\n') : [], draft, status: st, extra:'', err:''};
+  });
+  $('#mapping').classList.add('hidden');
+  $('#fileInfo').textContent = `${fname} · 작업 파일 불러옴 (${list.length}명)`;
+  setStudents(list);
+  state.dirty = false;
+}
+
+function setStudents(list){
+  state.students = list.sort((a,b) => a.sid.localeCompare(b.sid, 'ko', {numeric:true}) || a.name.localeCompare(b.name, 'ko'));
+  state.selectedId = state.students[0]?.id || null;
+  $('#workCard').classList.remove('hidden');
+  renderList(); renderEditor();
+  $('#workCard').scrollIntoView({behavior:'smooth'});
+}
+
+/* ---------- 개인정보 마스킹 ---------- */
+function mask(text, stu){
+  let t = String(text || '');
+  const names = [...new Set(state.students.map(s => s.name).filter(n => n.length >= 2))].sort((a,b) => b.length - a.length);
+  const rep = n => n === stu.name ? '해당 학생' : '다른 학생';
+  for (const n of names) t = t.replace(new RegExp(escRe(n), 'g'), rep(n));
+  for (const n of names) if (n.length >= 3) {           // 성을 뺀 이름 (예: 민준이가)
+    t = t.replace(new RegExp(escRe(n.slice(1)) + '(?=[이가은는을를의도와과에야아,.!?\\s]|$)', 'g'), rep(n));
+  }
+  for (const s of state.students) if (s.sid.length >= 4) t = t.replace(new RegExp(escRe(s.sid), 'g'), '[학번]');
+  t = t.replace(/0\d{1,2}[-.\s]?\d{3,4}[-.\s]?\d{4}/g, '[전화번호]')
+       .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '[이메일]');
+  const sch = $('#school').value.trim();
+  if (sch) {
+    const forms = [sch];
+    if (sch.endsWith('고등학교')) forms.push(sch.replace(/고등학교$/, '고'), sch.replace(/고등학교$/, '고교'));
+    for (const f of forms.sort((a,b) => b.length - a.length)) t = t.replace(new RegExp(escRe(f), 'g'), '본교');
+  }
+  return t.replace(/[가-힣]{1,12}(?:여자)?고등학교/g, '본교');
+}
+
+/* ---------- 프롬프트 ---------- */
+function systemPrompt(){
+  const area = $('#area').value.trim() || '교과 세부능력 및 특기사항';
+  const mb = maxBytes(), chars = Math.floor(mb / 3);
+  const extra = $('#globalExtra').value.trim();
+  return `너는 대한민국 고등학교 교사로서 학교생활기록부의 「${area}」 항목을 작성한다.
+제공되는 자료는 학생이 제출한 활동 기록이며, 이를 근거로 교사가 관찰하여 기록하는 문장으로 작성한다.
+
+[반드시 지킬 작성 원칙]
+1. 자료에 나타난 사실과 활동만 기록한다. 자료에 없는 활동, 결과, 수치는 지어내지 않는다.
+2. 칭찬과 미사여구를 쓰지 않는다. (뛰어난, 탁월한, 훌륭한, 우수한, 돋보이는, 인상적인 등 금지)
+3. 모든 문장은 '~했음', '~임', '~함'과 같은 명사형으로 끝낸다. ('~했다', '~합니다' 금지)
+4. '대회', '수상', '공모전', 특정 대학명, '방과후'와 같은 단어를 쓰지 않는다. 자료에 이런 내용이 있으면 그 과정에서 한 활동 내용만 기록한다.
+5. 영어를 과도하게 쓰지 않고 우리말로 풀어 쓴다. 꼭 필요한 고유한 용어(프로그래밍 언어 이름 등)만 최소한으로 쓴다.
+6. 교사의 주관적 평가나 추측('~할 것으로 기대됨', '~인 것 같음', '잠재력이 큼' 등)을 쓰지 않는다.
+7. 학교명, 지역명 등 고교 정보를 드러내지 않는다. 자료의 '본교', '[학번]' 같은 표시는 본문에 옮기지 않는다.
+8. 활동 이름만 단순히 나열하지 않는다.
+9. 각 활동마다 [구체적으로 무엇을 어떻게 했는지] → [활동 과정에서 보인 태도와 노력] → [그로 인한 행동 변화와 성장]이 드러나도록 쓴다.
+
+[출력 형식]
+- 주어(학생 이름, '해당 학생', '이 학생', '학생은')를 쓰지 않는다.
+- 줄바꿈 없이 한 문단으로 쓴다.
+- 공백 포함 약 ${Math.round(chars*0.8)}~${chars}자로 쓰되 NEIS 기준 ${mb}바이트(한글 1자 3바이트)를 넘지 않는다. 자료가 적으면 짧게 쓰고 내용을 부풀리지 않는다.
+- 생기부 본문만 출력하고 제목, 따옴표, 설명은 붙이지 않는다.${extra ? `\n\n[교사 추가 지침]\n${extra}` : ''}`;
+}
+
+function userPrompt(stu){
+  let u = `다음은 학생이 제출한 활동 자료임.\n\n${mask(sourceOf(stu), stu) || '(제출 자료 없음)'}`;
+  if (stu.extra.trim()) u += `\n\n[이 학생에 대한 교사 요청]\n${mask(stu.extra, stu)}`;
+  return u;
+}
+
+function refinePrompt(stu){
+  const issues = check(stu.draft).map(i => '- ' + i.msg).join('\n') || '- (자동 점검 문제 없음, 원칙에 맞게 문장만 다듬을 것)';
+  return userPrompt(stu) + `\n\n[현재 초안]\n${mask(stu.draft, stu)}\n\n[자동 점검 결과]\n${issues}\n\n위 초안을 작성 원칙에 맞게 고쳐 쓸 것. 자료에 근거한 사실은 유지하고 점검에서 지적된 표현을 고칠 것.`;
+}
+
+/* ---------- GPT 호출 ---------- */
+async function callGPT(user){
+  const key = getKey();
+  if (!key) throw new Error('API 키가 없습니다. 코드의 GPT_API 변수에 넣거나 1번 설정에 입력하세요.');
+  const model = $('#model').value.trim() || 'gpt-4o-mini';
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method:'POST',
+    headers:{'Content-Type':'application/json', 'Authorization':`Bearer ${key}`},
+    body: JSON.stringify({model, messages:[{role:'system', content:systemPrompt()}, {role:'user', content:user}]})
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error?.message || `요청 실패 (HTTP ${res.status})`);
+  return (data.choices?.[0]?.message?.content || '').trim();
+}
+const clean = t => t.replace(/^["“'`]+|["”'`]+$/g, '').replace(/^(해당 학생은|이 학생은|학생은)\s*/, '').replace(/\s*\n+\s*/g, ' ').trim();
+
+async function generateOne(stu, mode = 'new'){
+  if (!stu.entries.length && mode === 'new') { stu.status = 'error'; stu.err = '활동 자료가 없습니다.'; refresh(stu); return; }
+  const prev = stu.status;
+  stu.status = 'busy'; stu.err = ''; refresh(stu);
+  try {
+    const out = clean(await callGPT(mode === 'refine' ? refinePrompt(stu) : userPrompt(stu)));
+    if (!out) throw new Error('빈 응답을 받았습니다.');
+    stu.draft = out; stu.status = 'ai'; state.dirty = true;
+  } catch (e) {
+    stu.err = e.message; stu.status = stu.draft ? prev : 'error';
+    if (stu.status === 'busy') stu.status = 'error';
+  }
+  refresh(stu);
+}
+function refresh(stu){ renderList(); if (state.selectedId === stu.id) renderEditor(); }
+
+async function runBatch(list){
+  if (!list.length) return alert('생성할 학생이 없습니다.');
+  if (!getKey()) return alert('API 키가 없습니다. 코드의 GPT_API 변수에 넣거나 1번 설정에 입력하세요.');
+  state.running = true; state.stop = false; toggleRun();
+  let done = 0; const total = list.length, q = [...list];
+  const prog = () => { $('#progBar').style.width = (done/total*100) + '%'; $('#progTxt').textContent = `${done}/${total}명`; };
+  prog();
+  await Promise.all(Array.from({length: Math.min(3, total)}, async () => {
+    while (q.length && !state.stop) { await generateOne(q.shift()); done++; prog(); }
+  }));
+  state.running = false; toggleRun();
+  const errs = list.filter(s => s.err).length;
+  $('#progTxt').textContent = `${done}/${total}명 완료` + (state.stop ? ' (중지됨)' : '') + (errs ? ` · 오류 ${errs}명` : '');
+}
+function toggleRun(){
+  $('#stopBtn').classList.toggle('hidden', !state.running);
+  ['#genEmptyBtn','#genSelBtn','#buildBtn'].forEach(s => $(s).disabled = state.running);
+}
+
+/* ---------- 자동 점검 ---------- */
+function check(text){
+  const t = String(text || '').trim(), out = [];
+  if (!t) return out;
+  const mb = maxBytes(), b = neisBytes(t);
+  if (b > mb) out.push({lv:'err', msg:`분량 초과: ${b}/${mb}바이트`});
+  else if (b < mb * 0.3) out.push({lv:'warn', msg:'분량이 적음 — 활동이 단순 나열되지 않았는지 확인'});
+  const uniq = re => [...new Set(t.match(re) || [])];
+  const rules = [
+    ['err',  '대회·수상 관련 단어', /대회|경진|경시|올림피아드|공모전|수상|입상|해커톤/g],
+    ['err',  '대학 관련 표현', /[가-힣A-Za-z]*대학교|대학원|대학/g],
+    ['err',  '방과후 관련 표현', /방과\s?후/g],
+    ['err',  '고교 정보', /[가-힣]*고등학교|[가-힣]+고교|본교/g],
+    ['warn', '칭찬·수식 표현', /뛰어[난남나]|훌륭|탁월|우수[한함하]|돋보|최고|놀라[운움]|인상적|감탄|완벽|남다[른름]|특출|두각/g],
+    ['warn', '주관적 평가·추측', /기대됨|기대가 됨|것으로 보임|것 같음|생각됨|판단됨|잠재력|가능성이 (?:큼|높음)/g],
+    ['warn', '성적·순위 표현', /석차|내신|\d+\s?등(?!급)|\d+\s?위(?![가-힣])|만점/g],
+    ['warn', '학생 지칭·마스킹 표시', /해당 학생|이 학생|다른 학생|\[학번\]|\[전화번호\]|\[이메일\]/g],
+  ];
+  for (const [lv, name, re] of rules) { const f = uniq(re); if (f.length) out.push({lv, msg:`${name}: ${f.join(', ')}`}); }
+  const sch = $('#school').value.trim();
+  if (sch && t.includes(sch)) out.push({lv:'err', msg:`학교명 포함: ${sch}`});
+  for (const s of state.students) if (s.name.length >= 2 && t.includes(s.name)) { out.push({lv:'err', msg:`학생 이름 포함: ${s.name}`}); break; }
+  const en = uniq(/[A-Za-z][A-Za-z0-9+#]*/g);
+  if (en.length >= 3) out.push({lv:'warn', msg:`영어 표현 ${en.length}개: ${en.slice(0,8).join(', ')}${en.length>8?' …':''}`});
+  // 종결어미: 마지막 글자 받침이 'ㅁ'(했음·임·함·됨 등)인지
+  const bad = t.split(/(?<=[.!?])\s+/).map(x => x.trim()).filter(Boolean).filter(sn => {
+    const body = sn.replace(/[.!?"'”’)\]\s]+$/, ''); const ch = body.slice(-1); const c = ch.charCodeAt(0);
+    return !(c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 === 16);
+  });
+  if (bad.length) out.push({lv:'warn', msg:`'~했음/~임' 형식이 아닌 문장 ${bad.length}개: ` + bad.slice(0,3).map(x => '“…' + x.slice(-14) + '”').join(' ')});
+  return out;
+}
+
+/* ---------- 목록 ---------- */
+function visibleStudents(){
+  const q = $('#search').value.trim(), f = $('#filter').value;
+  return state.students.filter(s => {
+    if (q && !(s.sid.includes(q) || s.name.includes(q))) return false;
+    if (f === 'empty') return !s.draft.trim();
+    if (f === 'issue') return check(s.draft).length > 0;
+    if (f === 'error') return !!s.err;
+    return true;
+  });
+}
+function renderList(){
+  const mb = maxBytes();
+  $('#list').innerHTML = visibleStudents().map(s => {
+    const b = neisBytes(s.draft), iss = check(s.draft), ne = iss.filter(i => i.lv==='err').length;
+    const ck = iss.length ? `<span class="${ne?'e':'w'}">${iss.length}</span>` : (s.draft ? '<span style="color:var(--ok)">✓</span>' : '');
+    return `<tr data-id="${s.id}" class="${s.id===state.selectedId?'sel':''}">
+      <td><input type="checkbox" class="chk" data-id="${s.id}" ${s._chk?'checked':''}></td>
+      <td>${esc(s.sid)}</td><td>${esc(s.name)}</td>
+      <td><span class="badge b-${s.status}" title="${esc(s.err)}">${STATUS[s.status]}${s.err&&s.status!=='error'?' ⚠':''}</span></td>
+      <td class="${b>mb?'e':''}">${s.draft ? b : '-'}</td><td>${ck}</td></tr>`;
+  }).join('') || '<tr><td colspan="6" class="muted" style="text-align:center;padding:20px">해당하는 학생이 없습니다.</td></tr>';
+  const done = state.students.filter(s => s.draft.trim()).length;
+  $('#summary').textContent = `전체 ${state.students.length}명 · 작성 ${done}명 · 미작성 ${state.students.length - done}명`;
+}
+
+/* ---------- 편집기 ---------- */
+function renderEditor(){
+  const s = byId(state.selectedId);
+  if (!s) { $('#editor').innerHTML = '<div class="empty">왼쪽 목록에서 학생을 고르세요.</div>'; return; }
+  const busy = s.status === 'busy';
+  const idx = state.students.indexOf(s);
+  $('#editor').innerHTML = `
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:16px;font-weight:700">${esc(s.sid)} ${esc(s.name)} <span class="badge b-${s.status}">${STATUS[s.status]}</span></div>
+      <div class="row"><button id="prevBtn" ${idx<=0?'disabled':''}>◀ 이전</button><button id="nextBtn" ${idx>=state.students.length-1?'disabled':''}>다음 ▶</button></div>
+    </div>
+    <textarea id="draft" ${busy?'disabled':''} placeholder="AI 생성 버튼을 누르거나 직접 입력하세요.">${esc(busy ? 'AI가 작성하고 있습니다…' : s.draft)}</textarea>
+    <div class="meter"><span id="bytesTxt"></span><span id="charsTxt"></span></div>
+    <div class="bar"><div id="bytesBar"></div></div>
+    <div id="issues"></div>
+    ${s.err ? `<div class="errbox">⚠ ${esc(s.err)}</div>` : ''}
+    <div style="margin-top:12px">
+      <label>이 학생에 대한 추가 요청 (선택, 생성할 때 함께 보냄)</label>
+      <input type="text" id="stuExtra" value="${esc(s.extra)}" placeholder="예: 알고리즘 설계 과정을 더 구체적으로 / 팀 활동에서 맡은 역할 중심으로">
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="pri" id="genBtn" ${busy?'disabled':''}>${s.draft?'AI 다시 생성':'AI 생성'}</button>
+      <button id="refineBtn" ${busy||!s.draft.trim()?'disabled':''}>점검 결과 반영해 다듬기</button>
+      <button id="clearBtn" ${busy||!s.draft?'disabled':''}>내용 지우기</button>
+    </div>
+    <details open><summary>학생 제출 활동 자료 (원본 · 이 화면에만 표시)</summary><pre>${esc(sourceOf(s) || '(자료 없음)')}</pre></details>
+    <details><summary>API 전송 내용 미리보기 (개인정보 마스킹 적용)</summary><pre>${esc(userPrompt(s))}</pre></details>`;
+  updateMeter(s);
+
+  const ta = $('#draft');
+  let timer;
+  ta.addEventListener('input', () => {
+    s.draft = ta.value; state.dirty = true;
+    if (s.status !== 'edited') { s.status = 'edited'; }
+    updateMeter(s);
+    clearTimeout(timer); timer = setTimeout(renderList, 300);
+  });
+  $('#stuExtra').addEventListener('input', e => s.extra = e.target.value);
+  $('#genBtn').onclick = () => {
+    if (s.status === 'edited' && s.draft.trim() && !confirm('직접 수정한 내용이 새 초안으로 바뀝니다. 계속할까요?')) return;
+    generateOne(s, 'new');
+  };
+  $('#refineBtn').onclick = () => generateOne(s, 'refine');
+  $('#clearBtn').onclick = () => { if (confirm('이 학생의 생기부 내용을 지울까요?')) { s.draft=''; s.status='empty'; state.dirty=true; refresh(s); } };
+  $('#prevBtn').onclick = () => select(state.students[idx-1].id);
+  $('#nextBtn').onclick = () => select(state.students[idx+1].id);
+}
+function updateMeter(s){
+  const mb = maxBytes(), b = neisBytes(s.draft);
+  $('#bytesTxt').innerHTML = `<b class="${b>mb?'e':''}">${b}</b> / ${mb} 바이트 (NEIS 기준)`;
+  $('#charsTxt').textContent = `${[...s.draft].length}자 (공백 포함)`;
+  $('#bytesBar').style.width = Math.min(100, b/mb*100) + '%';
+  $('#bytesBar').style.background = b > mb ? 'var(--err)' : 'var(--pri)';
+  const iss = check(s.draft);
+  $('#issues').innerHTML = !s.draft.trim() ? '' : iss.length
+    ? iss.map(i => `<div class="issue ${i.lv}">${i.lv==='err'?'⛔':'⚠'} ${esc(i.msg)}</div>`).join('')
+    : '<div class="issue ok">✓ 자동 점검 항목에 걸리는 표현이 없습니다. (내용의 사실 여부는 직접 확인하세요)</div>';
+}
+function select(id){ state.selectedId = id; renderList(); renderEditor(); }
+
+/* ---------- 전체 다운로드 ---------- */
+function exportAll(){
+  if (!state.students.length) return alert('학생 자료가 없습니다.');
+  const list = [...state.students].sort((a,b) => a.sid.localeCompare(b.sid, 'ko', {numeric:true}));
+  const aoa = [['학번','이름','생기부 내용','바이트(NEIS)','글자수','점검사항','상태']];
+  for (const s of list) aoa.push([s.sid, s.name, s.draft, neisBytes(s.draft), [...s.draft].length, check(s.draft).map(i => i.msg).join(' / '), STATUS[s.status==='busy'?'empty':s.status]]);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:10},{wch:10},{wch:90},{wch:11},{wch:8},{wch:45},{wch:9}];
+  ws['!autofilter'] = {ref:`A1:G${aoa.length}`};
+  const ws2 = XLSX.utils.aoa_to_sheet([['학번','이름','활동 자료'], ...list.map(s => [s.sid, s.name, sourceOf(s)])]);
+  ws2['!cols'] = [{wch:10},{wch:10},{wch:100}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '생기부');
+  XLSX.utils.book_append_sheet(wb, ws2, '활동자료');
+  const d = new Date(), p = n => String(n).padStart(2,'0');
+  XLSX.writeFile(wb, `생기부_전체_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.xlsx`);
+  state.dirty = false;
+}
+
+/* ---------- 예시 자료 ---------- */
+function loadSample(){
+  const H = ['타임스탬프','이메일 주소','학번','이름','활동 주제','활동 내용 (무엇을 했나요?)','어려웠던 점과 해결 과정','활동 후 달라진 점'];
+  const rows = [H,
+    ['2026. 11. 2 오후 3:10','a@school.kr','10101','김민준','공공데이터를 활용한 급식 잔반 분석','교내 급식 잔반 자료를 받아 파이썬 판다스로 요일별, 메뉴별 잔반량을 정리하고 막대그래프로 시각화함. 결과를 학급 친구들에게 발표함.','결측값이 많아 처음에는 평균이 이상하게 나왔는데, 결측값을 제거하는 방법과 채우는 방법을 비교해 보고 제거하는 방식을 선택함.','데이터를 바로 믿지 않고 먼저 확인하는 습관이 생김. 친구들 질문에 답하려고 통계 개념을 더 찾아봄.'],
+    ['2026. 11. 3 오전 9:40','b@school.kr','10102','이서연','인공지능 분류 모델 만들기','티처블 머신으로 재활용 쓰레기(캔, 페트병, 종이)를 구분하는 이미지 분류 모델을 만들고, 사진 개수에 따른 정확도 차이를 실험함. 김민준과 함께 결과표를 만듦.','조명이 다르면 인식이 틀려서 여러 장소에서 사진을 다시 찍어 학습 데이터를 늘림.','학습 데이터가 모델 성능에 미치는 영향을 이해하게 되었고, 데이터 편향 문제에 관심이 생김.'],
+    ['2026. 11. 5 오후 4:02','c@school.kr','10103','박지호','알고리즘 효율 비교','버블 정렬과 퀵 정렬을 직접 구현하고 데이터 개수를 늘려가며 실행 시간을 측정해 표와 그래프로 비교함.','재귀 함수가 이해되지 않아 종이에 호출 과정을 그려가며 따라가 봄.','코드를 짤 때 시간 복잡도를 먼저 생각하게 됨.'],
+    ['2026. 11. 9 오후 2:15','a@school.kr','10101','김민준','발표 후 개선','발표 때 받은 질문(잔반과 날씨의 관계)을 바탕으로 기상청 자료를 추가로 합쳐서 기온과 잔반량의 상관관계를 다시 분석함.','두 자료의 날짜 형식이 달라 맞추는 데 시간이 걸림.','질문을 받으면 새로운 탐구로 이어갈 수 있다는 것을 알게 됨.'],
+  ];
+  setRows(rows, '예시_구글폼_응답.xlsx');
+}
+
+/* ---------- 이벤트 ---------- */
+renderKeyStatus(); renderBytesHint();
+const drop = $('#drop');
+drop.onclick = () => $('#file').click();
+$('#file').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) readFile(f).catch(err => alert('파일을 읽지 못했습니다: ' + err.message)); };
+drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+drop.ondragleave = () => drop.classList.remove('over');
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) readFile(f).catch(err => alert('파일을 읽지 못했습니다: ' + err.message)); };
+$('#sampleBtn').onclick = loadSample;
+$('#buildBtn').onclick = buildStudents;
+$('#sidCol').onchange = $('#nameCol').onchange = () => { state.map.sid = +$('#sidCol').value; state.map.name = +$('#nameCol').value; state.map.acts = state.map.acts.filter(i => i!==state.map.sid && i!==state.map.name); renderMapping(); };
+$('#list').onclick = e => {
+  if (e.target.classList.contains('chk')) { byId(e.target.dataset.id)._chk = e.target.checked; return; }
+  const tr = e.target.closest('tr[data-id]'); if (tr) select(tr.dataset.id);
+};
+$('#chkAll').onchange = e => { visibleStudents().forEach(s => s._chk = e.target.checked); renderList(); };
+$('#search').oninput = renderList;
+$('#filter').onchange = renderList;
+$('#maxBytes').oninput = () => { renderBytesHint(); renderList(); const s = byId(state.selectedId); if (s && $('#draft')) updateMeter(s); };
+$('#school').oninput = () => { const s = byId(state.selectedId); if (s) renderEditor(); };
+$('#genEmptyBtn').onclick = () => runBatch(state.students.filter(s => !s.draft.trim() && s.status !== 'busy'));
+$('#genSelBtn').onclick = () => {
+  const sel = state.students.filter(s => s._chk && s.status !== 'busy');
+  if (!sel.length) return alert('목록에서 학생을 체크하세요.');
+  const ed = sel.filter(s => s.status === 'edited' && s.draft.trim()).length;
+  if (ed && !confirm(`직접 수정한 학생 ${ed}명의 내용도 새 초안으로 바뀝니다. 계속할까요?`)) return;
+  runBatch(sel);
+};
+$('#stopBtn').onclick = () => { state.stop = true; $('#progTxt').textContent = '진행 중인 요청을 마치고 멈춥니다…'; };
+$('#exportBtn').onclick = exportAll;
+window.addEventListener('beforeunload', e => { if (state.dirty) { e.preventDefault(); e.returnValue = ''; } });
+</script>
+</body>
+</html>
